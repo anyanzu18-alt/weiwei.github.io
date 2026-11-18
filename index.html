@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>星光相册 · 致我的女孩</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#000}
+/* 告白文字 */
+.title{
+  position:fixed;
+  top:32px;
+  left:0;
+  width:100%;
+  text-align:center;
+  color:#ffd6e8;
+  font-size:clamp(18px,4vw,28px);
+  letter-spacing:4px;
+  text-shadow:0 0 16px rgba(255,170,210,0.7);
+  z-index:10;
+  pointer-events:none;
+}
+/* 底部提示 */
+.tip{
+  position:fixed;
+  bottom:100px;
+  width:100%;
+  text-align:center;
+  color:#ffc8e0;
+  font-size:clamp(12px,2.5vw,14px);
+  letter-spacing:1px;
+  opacity:0.8;
+  z-index:10;
+  pointer-events:none;
+}
+/* 音乐按钮 */
+.audio-btn{
+  position:fixed;
+  bottom:60px;
+  left:50%;
+  transform:translateX(-50%);
+  background:rgba(255,255,255,0.15);
+  color:#fff;
+  border:1px solid #ffb8d8;
+  padding:8px 16px;
+  border-radius:999px;
+  font-size:14px;
+  cursor:pointer;
+  z-index:10;
+  margin:0 4px;
+}
+.audio-btn:hover{background:rgba(255,180,210,0.35)}
+/* 切换按钮组 */
+.switch-wrap{
+  position:fixed;
+  bottom:16px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:10;
+  display:flex;
+  gap:8px;
+}
+.switch-btn{
+  background:rgba(255,255,255,0.15);
+  color:#fff;
+  border:1px solid #ffb8d8;
+  padding:6px 14px;
+  border-radius:999px;
+  font-size:14px;
+  cursor:pointer;
+}
+.switch-btn:hover{background:rgba(255,180,210,0.35)}
+/* 爱心容器 */
+.heart-container{
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  z-index:1;
+  overflow:hidden;
+}
+.heart{
+  position:absolute;
+  color:#ff88bb;
+  opacity:0.7;
+  animation: floatHeart linear infinite;
+}
+@keyframes floatHeart{
+  0%{transform:translateY(100vh) rotate(0deg);opacity:0.7;}
+  100%{transform:translateY(-120px) rotate(360deg);opacity:0;}
+}
+canvas{display:block}
+</style>
+</head>
+<body>
+<div class="title">💌 所有星光，都汇聚向你</div>
+<div class="tip">✨ 拖拽旋转视角｜滚轮缩放｜点击切换照片</div>
+<button class="audio-btn" id="audioBtn">🎵 播放音乐</button>
+<div class="switch-wrap">
+  <button class="switch-btn" id="prevBtn">← 上一张</button>
+  <button class="switch-btn" id="nextBtn">下一张 →</button>
+</div>
+<div class="heart-container" id="heartBox"></div>
+
+<audio id="bgm" loop preload="auto" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3">
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ========== 【这里替换你的16张图床直链！！】 ==========
+const imgList = [
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85e26b14c.jpg",
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85e5e0880.jpg",
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85e8067ed.jpg",
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85e8291ad.jpg",
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85ea7ba49.jpg",
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85e956b83.jpg",
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85ec75a8e.jpg",
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85ed4b17e.jpg",
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85ec15a05.jpg",
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85ef1da67.jpg",
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85efe9e62.jpg",
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85f0d925f.jpg",
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85f361e3d.jpg",
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85f1e471e.jpg",
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85f50a8bb.jpg",
+  "https://bee-reg-ab.imagency.cn/mr/202611/18/6afd85f773cfb.jpg"
+];
+let currentIndex = 0;
+let isLoading = false;
+// ======================================================
+
+// ========== 爱心漂浮逻辑 ==========
+const heartBox = document.getElementById('heartBox');
+function createHeart(){
+  const h = document.createElement('div');
+  h.className = 'heart';
+  h.innerText = '♥';
+  const size = Math.random()*20 + 12;
+  h.style.fontSize = size + 'px';
+  h.style.left = Math.random()*100 + '%';
+  h.style.animationDuration = (Math.random()*6 + 5) + 's';
+  heartBox.appendChild(h);
+  setTimeout(()=>h.remove(),11000);
+}
+setInterval(createHeart, 600);
+
+// ========== BGM控制 ==========
+const bgm = document.getElementById('bgm');
+const audioBtn = document.getElementById('audioBtn');
+let audioPlay = false;
+audioBtn.onclick = ()=>{
+  if(!audioPlay){
+    bgm.play();
+    audioBtn.innerText = '🔇 暂停音乐';
+    audioPlay = true;
+  }else{
+    bgm.pause();
+    audioBtn.innerText = '🎵 播放音乐';
+    audioPlay = false;
+  }
+}
+
+// ========== Three.js 粒子相册 ==========
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.minDistance = 2;
+controls.maxDistance = 12;
+camera.position.z = 6;
+
+const textureLoader = new THREE.TextureLoader();
+textureLoader.crossOrigin = "anonymous";
+
+let particles = null;
+let targetPositions = null;
+let originPositions = null;
+let colorsArr = null;
+
+// 加载图片、生成粒子
+function loadImage(url){
+  if(isLoading) return;
+  isLoading = true;
+  textureLoader.load(url, (tex)=>{
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = tex.image.width;
+    canvas.height = tex.image.height;
+    ctx.drawImage(tex.image,0,0);
+    const imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
+    const geo = new THREE.BufferGeometry();
+    const count = canvas.width * canvas.height;
+    const positions = new Float32Array(count*3);
+    colorsArr = new Float32Array(count*3);
+    targetPositions = new Float32Array(count*3);
+    originPositions = new Float32Array(count*3);
+
+    for(let i=0;i<count;i++){
+      const i4 = i*4;
+      const x = (i % canvas.width) - canvas.width / 2;
+      const y = Math.floor(i / canvas.width) - canvas.height / 2;
+      targetPositions[i*3] = x * 0.01;
+      targetPositions[i*3+1] = -y * 0.01;
+      targetPositions[i*3+2] = 0;
+      // 炸开位置
+      originPositions[i*3] = (Math.random()-0.5)*6;
+      originPositions[i*3+1] = (Math.random()-0.5)*6;
+      originPositions[i*3+2] = (Math.random()-0.5)*6;
+      positions[i*3] = originPositions[i*3];
+      positions[i*3+1] = originPositions[i*3+1];
+      positions[i*3+2] = originPositions[i*3+2];
+      colorsArr[i*3] = imgData.data[i4]/255;
+      colorsArr[i*3+1] = imgData.data[i4+1]/255;
+      colorsArr[i*3+2] = imgData.data[i4+2]/255;
+    }
+    geo.setAttribute("position", new THREE.BufferAttribute(positions,3));
+    geo.setAttribute("color", new THREE.BufferAttribute(colorsArr,3));
+    const mat = new THREE.PointsMaterial({size:0.04, vertexColors:true, transparent:true, opacity:0.9});
+    if(particles) scene.remove(particles);
+    particles = new THREE.Points(geo, mat);
+    scene.add(particles);
+    isLoading = false;
+  },()=>{isLoading=false});
+}
+
+// 切换：先炸开，再汇聚下一张
+function switchPhoto(nextIdx){
+  if(isLoading) return;
+  currentIndex = nextIdx;
+  if(!particles) {
+    loadImage(imgList[currentIndex]);
+    return;
+  }
+  // 炸开动画
+  const posAttr = particles.geometry.attributes.position;
+  const arr = posAttr.array;
+  let blowTimer = 0;
+  const blowAnimate = ()=>{
+    blowTimer++;
+    for(let i=0;i<arr.length;i++){
+      arr[i] += (originPositions[i] - arr[i]) * 0.08;
+    }
+    posAttr.needsUpdate = true;
+    if(blowTimer>25){
+      loadImage(imgList[currentIndex]);
+      return;
+    }
+    requestAnimationFrame(blowAnimate);
+  }
+  blowAnimate();
+}
+
+// 按钮事件
+document.getElementById('prevBtn').onclick = ()=>{
+  let idx = currentIndex -1;
+  if(idx<0) idx = imgList.length -1;
+  switchPhoto(idx);
+}
+document.getElementById('nextBtn').onclick = ()=>{
+  let idx = currentIndex +1;
+  if(idx >= imgList.length) idx = 0;
+  switchPhoto(idx);
+}
+
+// 初始加载第一张
+loadImage(imgList[currentIndex]);
+
+function animate(){
+  requestAnimationFrame(animate);
+  if(particles && targetPositions && !isLoading){
+    const posAttr = particles.geometry.attributes.position;
+    const arr = posAttr.array;
+    for(let i=0;i<arr.length;i++){
+      arr[i] += (targetPositions[i] - arr[i]) * 0.025;
+    }
+    posAttr.needsUpdate = true;
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener("resize",()=>{
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+})
+</script>
+</body>
+</html>
